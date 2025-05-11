@@ -1,240 +1,200 @@
 import enum
+import random
 import numpy as np
 
-from logging import getLogger
+# Constants
+RED = "r"
+BLU = "b"
+JOKER = "#"
+EMPTY = "_"
 
-logger = getLogger(__name__)
-
-# noinspection PyArgumentList
-Winner = enum.Enum("Winner", "black white draw")
-
-# noinspection PyArgumentList
-Player = enum.Enum("Player", "black white")
+# Enum for winners
+Winner = enum.Enum("Winner", "red blue draw")
+Player = enum.Enum("Player", "red blue")
 
 
-class Connect4Env:
+class AgentState:
+    def __init__(self, _id):
+        self.id = _id
+        self.color = BLU if _id == 0 else RED  # Player 0 is blue, player 1 is red
+        self.hand = []
+        self.completed_seqs = 0
+        self.traded = False
+
+
+class Deck:
     def __init__(self):
-        self.board = None
-        self.turn = 0
-        self.done = False
-        self.winner = None  # type: Winner
-        self.resigned = False
+        self.cards = []
+        self.reset()
 
     def reset(self):
-        self.board = []
-        for i in range(6):
-            self.board.append([])
-            for j in range(7):
-                self.board[i].append(' ')
+        # Sequence uses 2 standard decks (no jokers)
+        ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "t", "j", "q", "k", "a"]
+        suits = ["d", "c", "h", "s"]
+        self.cards = [r + s for r in ranks for s in suits] * 2
+        random.shuffle(self.cards)
+
+    def deal(self, n=1):
+        return [self.cards.pop() for _ in range(n)]
+
+
+class SequenceEnv:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        # Initialize board
+        self.board = [
+            ["jk", "2s", "3s", "4s", "5s", "6s", "7s", "8s", "9s", "jk"],
+            ["6c", "5c", "4c", "3c", "2c", "ah", "kh", "qh", "th", "ts"],
+            ["7c", "as", "2d", "3d", "4d", "5d", "6d", "7d", "9h", "qs"],
+            ["8c", "ks", "6c", "5c", "4c", "3c", "2c", "8d", "8h", "ks"],
+            ["9c", "qs", "7c", "6h", "5h", "4h", "ah", "9d", "7h", "as"],
+            ["tc", "ts", "8c", "7h", "2h", "3h", "kh", "td", "6h", "2d"],
+            ["qc", "9s", "9c", "8h", "9h", "th", "qh", "qd", "5h", "3d"],
+            ["kc", "8s", "tc", "qc", "kc", "ac", "ad", "kd", "4h", "4d"],
+            ["ac", "7s", "6s", "5s", "4s", "3s", "2s", "2h", "3h", "5d"],
+            ["jk", "ad", "kd", "qd", "td", "9d", "8d", "7d", "6d", "jk"],
+        ]
+        self.chips = [[EMPTY for _ in range(10)] for _ in range(10)]
+
+        # Set up joker spaces
+        for r, c in [(0, 0), (0, 9), (9, 0), (9, 9)]:
+            self.chips[r][c] = JOKER
+
+        # Initialize deck and deal cards
+        self.deck = Deck()
+        self.agents = [AgentState(i) for i in range(2)]  # Only 2 players now
+        for agent in self.agents:
+            agent.hand = self.deck.deal(6)
+
+        # Initial draft cards
+        self.draft_cards = self.deck.deal(5)
+
+        self.current_player = 0
         self.turn = 0
         self.done = False
         self.winner = None
-        self.resigned = False
         return self
-
-    def update(self, board):
-        self.board = np.copy(board)
-        self.turn = self.turn_n()
-        self.done = False
-        self.winner = None
-        self.resigned = False
-        return self
-
-    def turn_n(self):
-        turn = 0
-        for i in range(6):
-            for j in range(7):
-                if self.board[i][j] != ' ':
-                    turn += 1
-
-        return turn
 
     def player_turn(self):
-        if self.turn % 2 == 0:
-            return Player.white
-        else:
-            return Player.black
+        return self.agents[self.current_player]
 
     def step(self, action):
-        if action is None:
+        if action is None:  # Resign
             self._resigned()
-            return self.board, {}
+            return self.chips, {}
 
-        for i in range(6):
-            if self.board[i][action] == ' ':
-                self.board[i][action] = ('X' if self.player_turn() == Player.white else 'O')
-                break
+        player = self.player_turn()
 
-        self.turn += 1
+        # Handle different action types
+        if action["type"] == "place":
+            r, c = action["coords"]
+            self.chips[r][c] = player.color
+            player.hand.remove(action["card"])
 
-        self.check_for_fours()
+        elif action["type"] == "remove":
+            r, c = action["coords"]
+            self.chips[r][c] = EMPTY
+            player.hand.remove(action["card"])
 
-        if self.turn >= 42:
+        elif action["type"] == "trade":
+            player.hand.remove(action["card"])
+            player.traded = True
+
+        # Replace played card with draft card
+        if action["type"] != "trade":
+            player.hand.append(action["draft"])
+            self.draft_cards.remove(action["draft"])
+            self.draft_cards.extend(self.deck.deal(1))
+            player.traded = False
+            self.current_player = (self.current_player + 1) % 2  # Only 2 players now
+            self.turn += 1
+
+        # Check for winning sequences
+        self.check_for_sequences()
+
+        return self.chips, {}
+
+    def check_for_sequences(self):
+        # Check sequences for both players
+        for player in self.agents:
+            player.completed_seqs = self.count_sequences(player.color)
+
+        # Check win conditions
+        if self.agents[0].completed_seqs >= 2:
             self.done = True
-            if self.winner is None:
-                self.winner = Winner.draw
+            self.winner = Winner.blue
+        elif self.agents[1].completed_seqs >= 2:
+            self.done = True
+            self.winner = Winner.red
+        elif len(self.deck.cards) == 0:  # Deck exhausted
+            self.done = True
+            self.winner = Winner.draw
 
-        return self.board, {}
+    def count_sequences(self, color):
+        count = 0
+        # Check all possible 5-in-a-row sequences
+        # (Implementation would be similar to your check_for_fives but return count)
+        return count
 
     def legal_moves(self):
-        legal = [0, 0, 0, 0, 0, 0, 0]
-        for j in range(7):
-            for i in range(6):
-                if self.board[i][j] == ' ':
-                    legal[j] = 1
-                    break
+        actions = []
+        player = self.player_turn()
 
-        return legal
+        # Check for dead cards that can be traded
+        if not player.traded:
+            for card in player.hand:
+                if card[0] != "j" and not any(
+                    self.chips[r][c] == EMPTY for r, c in COORDS[card]
+                ):
+                    for draft in self.draft_cards:
+                        actions.append({"type": "trade", "card": card, "draft": draft})
 
-    def check_for_fours(self):
-        for i in range(6):
-            for j in range(7):
-                if self.board[i][j] != ' ':
-                    # check if a vertical four-in-a-row starts at (i, j)
-                    if self.vertical_check(i, j):
-                        self.done = True
-                        return
-
-                    # check if a horizontal four-in-a-row starts at (i, j)
-                    if self.horizontal_check(i, j):
-                        self.done = True
-                        return
-
-                    # check if a diagonal (either way) four-in-a-row starts at (i, j)
-                    diag_fours = self.diagonal_check(i, j)
-                    if diag_fours:
-                        self.done = True
-                        return
-
-    def vertical_check(self, row, col):
-        # print("checking vert")
-        four_in_a_row = False
-        consecutive_count = 0
-
-        for i in range(row, 6):
-            if self.board[i][col].lower() == self.board[row][col].lower():
-                consecutive_count += 1
-            else:
-                break
-
-        if consecutive_count >= 4:
-            four_in_a_row = True
-            if 'x' == self.board[row][col].lower():
-                self.winner = Winner.white
-            else:
-                self.winner = Winner.black
-
-        return four_in_a_row
-
-    def horizontal_check(self, row, col):
-        four_in_a_row = False
-        consecutive_count = 0
-
-        for j in range(col, 7):
-            if self.board[row][j].lower() == self.board[row][col].lower():
-                consecutive_count += 1
-            else:
-                break
-
-        if consecutive_count >= 4:
-            four_in_a_row = True
-            if 'x' == self.board[row][col].lower():
-                self.winner = Winner.white
-            else:
-                self.winner = Winner.black
-
-        return four_in_a_row
-
-    def diagonal_check(self, row, col):
-        four_in_a_row = False
-        count = 0
-
-        consecutive_count = 0
-        j = col
-        for i in range(row, 6):
-            if j > 6:
-                break
-            elif self.board[i][j].lower() == self.board[row][col].lower():
-                consecutive_count += 1
-            else:
-                break
-            j += 1
-
-        if consecutive_count >= 4:
-            count += 1
-            if 'x' == self.board[row][col].lower():
-                self.winner = Winner.white
-            else:
-                self.winner = Winner.black
-
-        consecutive_count = 0
-        j = col
-        for i in range(row, -1, -1):
-            if j > 6:
-                break
-            elif self.board[i][j].lower() == self.board[row][col].lower():
-                consecutive_count += 1
-            else:
-                break
-            j += 1
-
-        if consecutive_count >= 4:
-            count += 1
-            if 'x' == self.board[row][col].lower():
-                self.winner = Winner.white
-            else:
-                self.winner = Winner.black
-
-        if count > 0:
-            four_in_a_row = True
-
-        return four_in_a_row
+        # Regular moves
+        for card in player.hand:
+            if card in ["jd", "jc"]:  # Two-eyed jacks (place anywhere)
+                for r in range(10):
+                    for c in range(10):
+                        if self.chips[r][c] == EMPTY:
+                            for draft in self.draft_cards:
+                                actions.append(
+                                    {
+                                        "type": "place",
+                                        "card": card,
+                                        "coords": (r, c),
+                                        "draft": draft,
+                                    }
+                                )
+            elif card in ["jh", "js"]:  # One-eyed jacks (remove opponent)
+                opponent_color = BLU if player.color == RED else RED
+                for r in range(10):
+                    for c in range(10):
+                        if self.chips[r][c] == opponent_color:
+                            for draft in self.draft_cards:
+                                actions.append(
+                                    {
+                                        "type": "remove",
+                                        "card": card,
+                                        "coords": (r, c),
+                                        "draft": draft,
+                                    }
+                                )
+            else:  # Regular cards
+                for r, c in COORDS[card]:
+                    if self.chips[r][c] == EMPTY:
+                        for draft in self.draft_cards:
+                            actions.append(
+                                {
+                                    "type": "place",
+                                    "card": card,
+                                    "coords": (r, c),
+                                    "draft": draft,
+                                }
+                            )
+        return actions
 
     def _resigned(self):
-        if self.player_turn() == Player.white:
-            self.winner = Winner.white
-        else:
-            self.winner = Winner.black
+        current_color = self.agents[self.current_player].color
+        self.winner = Winner.blue if current_color == BLU else Winner.red
         self.done = True
-        self.resigned = True
-
-    def black_and_white_plane(self):
-        board_white = np.copy(self.board)
-        board_black = np.copy(self.board)
-        for i in range(6):
-            for j in range(7):
-                if self.board[i][j] == ' ':
-                    board_white[i][j] = 0
-                    board_black[i][j] = 0
-                elif self.board[i][j] == 'X':
-                    board_white[i][j] = 1
-                    board_black[i][j] = 0
-                else:
-                    board_white[i][j] = 0
-                    board_black[i][j] = 1
-
-        return np.array(board_white), np.array(board_black)
-
-    def render(self):
-        print("\nRound: " + str(self.turn))
-
-        for i in range(5, -1, -1):
-            print("\t", end="")
-            for j in range(7):
-                print("| " + str(self.board[i][j]), end=" ")
-            print("|")
-        print("\t  _   _   _   _   _   _   _ ")
-        print("\t  1   2   3   4   5   6   7 ")
-
-        if self.done:
-            print("Game Over!")
-            if self.winner == Winner.white:
-                print("X is the winner")
-            elif self.winner == Winner.black:
-                print("O is the winner")
-            else:
-                print("Game was a draw")
-
-    @property
-    def observation(self):
-        return ''.join(''.join(x for x in y) for y in self.board)

@@ -1,7 +1,7 @@
 from logging import getLogger
 
-from connect4_zero.agent.player_connect4 import HistoryItem
-from connect4_zero.agent.player_connect4 import Connect4Player, Player
+from connect4_zero.agent.player_sequence import HistoryItem
+from connect4_zero.agent.player_sequence import Connect4Player, Player
 from connect4_zero.config import Config
 from connect4_zero.lib.model_helpler import load_best_model_weight
 

@@ -3,7 +3,7 @@ from logging import getLogger
 
 from connect4_zero.config import Config, PlayWithHumanConfig
 from connect4_zero.play_game.game_model import PlayWithHuman
-from connect4_zero.env.connect4_env import Connect4Env, Player, Winner
+from connect4_zero.env.sequence_env import Connect4Env, Player, Winner
 from random import random
 
 logger = getLogger(__name__)

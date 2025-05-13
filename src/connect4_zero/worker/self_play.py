@@ -5,7 +5,7 @@ from time import time
 
 from connect4_zero.agent.player_connect4 import Connect4Player
 from connect4_zero.config import Config
-from connect4_zero.env.connect4_env import Connect4Env, Winner, Player
+from connect4_zero.env.sequence_env import Connect4Env, Winner, Player
 from connect4_zero.lib import tf_util
 from connect4_zero.lib.data_helper import get_game_data_filenames, write_game_data_to_file
 from connect4_zero.lib.model_helpler import load_best_model_weight, save_as_best_model, \
@@ -99,7 +99,7 @@ class SelfPlayWorker:
         self.white.finish_game(-black_win)
 
     def load_model(self):
-        from connect4_zero.agent.model_connect4 import Connect4Model
+        from connect4_zero.agent.model_sequence import Connect4Model
         model = Connect4Model(self.config)
         if self.config.opts.new or not load_best_model_weight(model):
             model.build()

@@ -8,7 +8,7 @@ import numpy as np
 
 from connect4_zero.agent.api_connect4 import Connect4ModelAPI
 from connect4_zero.config import Config
-from connect4_zero.env.connect4_env import Connect4Env, Winner, Player
+from connect4_zero.env.sequence_env import Connect4Env, Winner, Player
 
 CounterKey = namedtuple("CounterKey", "board next_player")
 QueueItem = namedtuple("QueueItem", "state future")

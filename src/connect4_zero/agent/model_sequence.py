@@ -3,7 +3,6 @@ import json
 import os
 from logging import getLogger
 import keras.backend as K
-import ftplib
 from keras.engine.topology import Input
 from keras.engine.training import Model
 from keras.layers.convolutional import Conv2D
@@ -17,7 +16,6 @@ from connect4_zero.config import Config
 
 logger = getLogger(__name__)
 
-
 class SequenceModel:
     def __init__(self, config: Config):
         self.config = config
@@ -25,60 +23,24 @@ class SequenceModel:
         self.digest = None
 
     def build(self):
-        mc = self.config.model
-        # Adjusting the input shape for Sequence
+        # Input for the board, hand, and opponent’s belief
         in_x = x = Input(
             (10, 10, 4)
-        )  # [board(10x10), hand, discard pile, opponent belief]
+        )  # Updated for Sequence (10x10 board + hand, discard, belief)
 
-        # Convolution layers for feature extraction
-        x = Conv2D(
-            filters=mc.cnn_filter_num,
-            kernel_size=mc.cnn_filter_size,
-            padding="same",
-            data_format="channels_last",
-            kernel_regularizer=l2(mc.l2_reg),
-        )(x)
+        # Convolutional layers for board processing
+        x = Conv2D(filters=128, kernel_size=3, padding="same", activation="relu")(x)
         x = BatchNormalization()(x)
-        x = Activation("relu")(x)
-
-        for _ in range(mc.res_layer_num):
-            x = self._build_residual_block(x)
-
-        res_out = x
-        # Policy output (for action prediction)
-        x = Conv2D(
-            filters=2,
-            kernel_size=1,
-            data_format="channels_last",
-            kernel_regularizer=l2(mc.l2_reg),
-        )(res_out)
-        x = BatchNormalization()(x)
-        x = Activation("relu")(x)
         x = Flatten()(x)
-        policy_out = Dense(
-            self.config.n_labels,
-            kernel_regularizer=l2(mc.l2_reg),
-            activation="softmax",
-            name="policy_out",
-        )(x)
 
-        # Value output (for predicting the outcome of the game)
-        x = Conv2D(
-            filters=1,
-            kernel_size=1,
-            data_format="channels_last",
-            kernel_regularizer=l2(mc.l2_reg),
-        )(res_out)
-        x = BatchNormalization()(x)
-        x = Activation("relu")(x)
-        x = Flatten()(x)
-        x = Dense(
-            mc.value_fc_size, kernel_regularizer=l2(mc.l2_reg), activation="relu"
-        )(x)
-        value_out = Dense(
-            1, kernel_regularizer=l2(mc.l2_reg), activation="tanh", name="value_out"
-        )(x)
+        # Dense layers for hand and discard pile processing
+        y = Dense(256, activation="relu")(x)
+
+        # Policy head (outputs probabilities for each action)
+        policy_out = Dense(104, activation="softmax", name="policy_out")(y)
+
+        # Value head (outputs game outcome prediction)
+        value_out = Dense(1, activation="tanh", name="value_out")(y)
 
         self.model = Model(in_x, [policy_out, value_out], name="sequence_model")
 
@@ -129,6 +91,12 @@ class SequenceModel:
             json.dump(self.model.get_config(), f)
             self.model.save_weights(weight_path)
         self.digest = self.fetch_digest(weight_path)
+
+    def objective_function_for_policy(y_true, y_pred):
+        return K.sum(-y_true * K.log(y_pred + K.epsilon()), axis=-1)
+
+    def objective_function_for_value(y_true, y_pred):
+        return mean_squared_error(y_true, y_pred)
 
 
 # class Connect4Model:
@@ -240,12 +208,10 @@ class SequenceModel:
 #             ftp_connection.storbinary('STOR model_best_weight.h5', fh)
 #             fh.close()
 #             ftp_connection.quit()
+# def objective_function_for_policy(y_true, y_pred):
+#     # can use categorical_crossentropy??
+#     return K.sum(-y_true * K.log(y_pred + K.epsilon()), axis=-1)
 
 
-def objective_function_for_policy(y_true, y_pred):
-    # can use categorical_crossentropy??
-    return K.sum(-y_true * K.log(y_pred + K.epsilon()), axis=-1)
-
-
-def objective_function_for_value(y_true, y_pred):
-    return mean_squared_error(y_true, y_pred)
+# def objective_function_for_value(y_true, y_pred):
+#     return mean_squared_error(y_true, y_pred)

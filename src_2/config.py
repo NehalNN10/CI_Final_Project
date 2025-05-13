@@ -6,7 +6,7 @@ def _project_dir():
 
 
 def _data_dir():
-    return os.path.join(_project_dir(), "data")
+    return os.path.join(_project_dir(), "data_2")
 
 
 class Config:
@@ -14,20 +14,13 @@ class Config:
         self.opts = Options()
         self.resource = ResourceConfig()
 
-        if config_type == "mini":
-            import connect4_zero.configs.mini as c
-        elif config_type == "normal":
-            import connect4_zero.configs.normal as c
-        elif config_type == "distributed":
-            import connect4_zero.configs.distributed as c
-        else:
-            raise RuntimeError(f"unknown config_type: {config_type}")
+        import mini as c
         self.model = c.ModelConfig()
         self.play = c.PlayConfig()
         self.play_data = c.PlayDataConfig()
         self.trainer = c.TrainerConfig()
         self.eval = c.EvaluateConfig()
-        self.n_labels = 7
+        self.n_labels = 104
 
 
 class Options:
@@ -41,11 +34,6 @@ class ResourceConfig:
         self.model_dir = os.environ.get("MODEL_DIR", os.path.join(self.data_dir, "model"))
         self.model_best_config_path = os.path.join(self.model_dir, "model_best_config.json")
         self.model_best_weight_path = os.path.join(self.model_dir, "model_best_weight.h5")
-
-        self.model_best_distributed_ftp_server = "enews2.com"
-        self.model_best_distributed_ftp_user = "ftp@enews2.com"
-        self.model_best_distributed_ftp_password = "ngmAQedM9"
-        self.model_best_distributed_ftp_remote_path = "/"
         
         self.next_generation_model_dir = os.path.join(self.model_dir, "next_generation")
         self.next_generation_model_dirname_tmpl = "model_%s"

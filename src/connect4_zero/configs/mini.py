@@ -1,8 +1,7 @@
 class EvaluateConfig:
     def __init__(self):
-        # self.game_num = 50
-        self.game_num = 30
-        self.replace_rate = 0.55 # Win at least 55% of the time
+        self.game_num = 50
+        self.replace_rate = 0.55
         self.play_config = PlayConfig()
         self.play_config.c_puct = 1
         self.play_config.change_tau_turn = 0
@@ -18,26 +17,23 @@ class PlayDataConfig:
 
 class PlayConfig:
     def __init__(self):
-        # self.simulation_num_per_move = 100
-        self.simulation_num_per_move = 30
+        self.simulation_num_per_move = 100
         self.thinking_loop = 1
         self.logging_thinking = False
         self.c_puct = 5
         self.noise_eps = 0.25
         self.dirichlet_alpha = 0.03
         self.change_tau_turn = 10
-        self.virtual_loss = 3 # loss for repeating the same action
+        self.virtual_loss = 3
         self.prediction_queue_size = 16
-        # self.parallel_search_num = 4
-        self.parallel_search_num = 1
+        self.parallel_search_num = 4
         self.prediction_worker_sleep_sec = 0.00001
         self.wait_for_expanding_sleep_sec = 0.000001
 
 
 class TrainerConfig:
     def __init__(self):
-        # self.batch_size = 1024
-        self.batch_size = 256
+        self.batch_size = 1024
         self.epoch_to_checkpoint = 1
         self.start_total_steps = 0
         self.save_model_steps = 100

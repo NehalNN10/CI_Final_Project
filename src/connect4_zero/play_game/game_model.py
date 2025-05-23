@@ -1,7 +1,7 @@
 from logging import getLogger
 
-from connect4_zero.agent.player_sequence import HistoryItem
-from connect4_zero.agent.player_sequence import Connect4Player, Player
+from connect4_zero.agent.player_connect4 import HistoryItem
+from connect4_zero.agent.player_connect4 import Connect4Player, Player
 from connect4_zero.config import Config
 from connect4_zero.lib.model_helpler import load_best_model_weight
 
@@ -23,7 +23,7 @@ class PlayWithHuman:
         self.ai = Connect4Player(self.config, self.model)
 
     def _load_model(self):
-        from connect4_zero.agent.model_sequence import Connect4Model
+        from connect4_zero.agent.model_connect4 import Connect4Model
         model = Connect4Model(self.config)
         if not load_best_model_weight(model):
             raise RuntimeError("best model not found!")

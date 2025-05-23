@@ -1,5 +1,6 @@
 import os
 
+
 def _project_dir():
     d = os.path.dirname
     return d(d(d(os.path.abspath(__file__))))
@@ -68,13 +69,11 @@ class ResourceConfig:
 
 class PlayWithHumanConfig:
     def __init__(self):
-        # self.simulation_num_per_move = 50
-        self.simulation_num_per_move = 20
+        self.simulation_num_per_move = 50
         self.thinking_loop = 2
         self.logging_thinking = True
         self.c_puct = 1
-        # self.parallel_search_num = 2
-        self.parallel_search_num = 1
+        self.parallel_search_num = 2
         self.noise_eps = 0
         self.change_tau_turn = 0
         self.resign_threshold = None
